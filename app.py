@@ -50,9 +50,9 @@ def generate_unique_2_digit_id(existing_ids):
             return new_id
 
 def main():
-    # Add logo ![Cheat Sheet](~img/cheatcheet.jpg)
+    # Add logo 
     # logo_url = 
-    st.image(logo_url, width=150)  # Adjust width as needed
+    # st.image(logo_url, width=150)  # Adjust width as needed
 
     st.title("Name Convention Generator")
 
