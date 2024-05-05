@@ -39,7 +39,7 @@ To run the Name Convention Generator on your local machine, follow these steps:
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/your-username/name-convention-generator.git \
+git clone pip install -r requirements.txt 
 cd name-convention-generator
 pip install -r requirements.txt
 streamlit run app.py
