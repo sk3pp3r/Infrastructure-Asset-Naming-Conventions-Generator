@@ -2,6 +2,7 @@
 
 A Streamlit web application that generates a name convention based on user inputs.
 
+[![Docker Image CI](https://github.com/sk3pp3r/Infrastructure-Asset-Naming-Conventions-Generator/actions/workflows/docker-image.yml/badge.svg)](https://github.com/sk3pp3r/Infrastructure-Asset-Naming-Conventions-Generator/actions/workflows/docker-image.yml)
 
 
 ## Table of Contents
