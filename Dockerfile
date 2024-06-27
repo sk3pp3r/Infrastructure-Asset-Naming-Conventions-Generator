@@ -4,7 +4,7 @@
 FROM python:3.7
 
 # Maintainer
-LABEL maintainer="Haim Cohen <haim.cohen@xmcyber.com>"
+LABEL maintainer="Haim Cohen <haim1979n@gmail.com>"
 
 # Set environment variables
 ENV PYTHONUNBUFFERED 1
