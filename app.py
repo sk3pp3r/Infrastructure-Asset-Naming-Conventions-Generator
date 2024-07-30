@@ -27,8 +27,7 @@ def generate_name_convention(environment, location, usage_type, server_function,
         error_message = "❌ Invalid input lengths or values."
         return f"{error_message}"
 
-    if location == "Cloudem-VM":
-        location_code = "clm"
+
     else:
         location_code = location[:3]
 
