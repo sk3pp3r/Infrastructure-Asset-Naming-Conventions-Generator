@@ -1,0 +1,29 @@
+name: Trivy Scan
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  trivy-scan:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Set up Trivy
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y wget
+        wget https://github.com/aquasecurity/trivy/releases/download/v0.40.0/trivy_0.40.0_Linux-64bit.deb
+        sudo dpkg -i trivy_0.40.0_Linux-64bit.deb
+        trivy --version
+
+    - name: Run Trivy scan
+      run: |
+        trivy fs . --exit-code 1 
