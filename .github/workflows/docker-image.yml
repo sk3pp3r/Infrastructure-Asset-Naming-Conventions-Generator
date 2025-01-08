@@ -1,4 +1,4 @@
-name: Docker Image CI
+name: Docker Image CI & Trivy
 
 on:
   push:
@@ -7,12 +7,25 @@ on:
     branches: [ "main" ]
 
 jobs:
-
   build:
-
     runs-on: ubuntu-latest
 
     steps:
     - uses: actions/checkout@v3
+    
     - name: Build the Docker image
-      run: docker build . --file Dockerfile --tag my-image-name:$(date +%s)
+      run: docker build . --file Dockerfile --tag name-convention-generator:$(date +%s)
+    
+    - name: Set up Trivy
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y wget
+        wget https://github.com/aquasecurity/trivy/releases/download/v0.40.0/trivy_0.40.0_Linux-64bit.deb
+        sudo dpkg -i trivy_0.40.0_Linux-64bit.deb
+        trivy --version
+
+    - name: Scan Docker image with Trivy
+      run: |
+        IMAGE_TAG=$(date +%s)
+        docker tag name-convention-generator:$IMAGE_TAG name-convention-generator:latest
+        trivy image name-convention-generator:latest --exit-code 1 --severity HIGH,CRITICAL --no-progress
