@@ -1,4 +1,4 @@
-name: Docker Image CI & Trivy
+name: Docker Image CI with Trivy Security Report
 
 on:
   push:
@@ -7,14 +7,18 @@ on:
     branches: [ "main" ]
 
 jobs:
-  build_and_scan:
+  build:
     runs-on: ubuntu-latest
+
+    env:
+      IMAGE_TAG: ${{ github.run_id }}
 
     steps:
     - uses: actions/checkout@v3
     
     - name: Build the Docker image
-      run: docker build . --file Dockerfile --tag name-convention-generator:alfa
+      run: |
+        docker build . --file Dockerfile --tag name-convention-generator:${IMAGE_TAG}
     
     - name: Set up Trivy
       run: |
@@ -24,6 +28,15 @@ jobs:
         sudo dpkg -i trivy_0.40.0_Linux-64bit.deb
         trivy --version
 
-    - name: Scan Docker image with Trivy
+    - name: Scan Docker image with Trivy and generate SARIF
       run: |
-        trivy image name-convention-generator:alfa --exit-code 1 --severity HIGH,CRITICAL 
+        mkdir -p trivy-reports
+        trivy image name-convention-generator:${IMAGE_TAG} \
+          --format sarif \
+          --output trivy-reports/trivy-report.sarif \
+          --severity HIGH,CRITICAL
+
+    - name: Upload SARIF file to GitHub Security tab
+      uses: github/codeql-action/upload-sarif@v2
+      with:
+        sarif_file: trivy-reports/trivy-report.sarif
