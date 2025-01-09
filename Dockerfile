@@ -1,7 +1,8 @@
 # Dockerfile for Streamlit Application
 
 # Specify the base image
-FROM python:3.7
+#FROM python:3.7
+FROM python:latest
 
 # Maintainer
 LABEL maintainer="Haim Cohen <haim1979n@gmail.com>"
