@@ -1,0 +1,36 @@
+name: Generate and Upload SBOM Report
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  generate-sbom:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v2
+
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: '3.x'
+
+    - name: Install cyclonedx-bom
+      run: pip install cyclonedx-bom
+
+    - name: Generate SBOM
+      run: cyclonedx-bom -o sbom.json
+
+    - name: Upload SBOM to Security Tab
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        curl -X POST \
+          -H "Authorization: token $GITHUB_TOKEN" \
+          -H "Content-Type: application/json" \
+          --data @sbom.json \
+          https://api.github.com/repos/${{ github.repository }}/security/code-scanning/sarifs
