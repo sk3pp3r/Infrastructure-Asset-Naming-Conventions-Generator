@@ -22,10 +22,11 @@ jobs:
     - name: Install cyclonedx-bom
       run: |
         python -m pip install --upgrade pip
-        pip install cyclonedx-bom
+        python -m pip install cyclonedx-bom  # Ensure proper Python executable usage
 
     - name: Generate SBOM
-      run: cyclonedx-bom -o sbom.json
+      run: |
+        python -m cyclonedx_bom -o sbom.json  # Use Python module invocation to avoid PATH issues
 
     - name: Upload SBOM to Security Tab
       env:
