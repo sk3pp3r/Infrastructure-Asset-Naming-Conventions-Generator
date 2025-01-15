@@ -1,4 +1,4 @@
-name: Generate and Upload SBOM Report
+name: Generate SBOM, Scan Vulnerabilities, and Create Report
 
 on:
   push:
@@ -7,26 +7,70 @@ on:
   workflow_dispatch:
 
 jobs:
-  generate-sbom:
+  sbom-scan:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout repository
+    - name: Checkout Repository
       uses: actions/checkout@v2
 
-    - name: Set up Python
-      uses: actions/setup-python@v2
-      with:
-        python-version: '3.x'
-
-    - name: Install cyclonedx-bom
+    - name: Install Syft and Grype
       run: |
-        python -m pip install --upgrade pip
-        python -m pip install cyclonedx-bom  # Ensure proper Python executable usage
+        set -x
+        curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
+        curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin
 
     - name: Generate SBOM
       run: |
-        python -m cyclonedx_bom -o sbom.json  # Use Python module invocation to avoid PATH issues
+        set -x
+        syft dir:. -o cyclonedx-json > sbom.cyclonedx.json
+        syft dir:. -o table > sbom-report-table.txt
+        echo "SBOM table:"
+        cat sbom-report-table.txt
+
+    - name: Scan SBOM for Vulnerabilities
+      run: |
+        set -x
+        grype sbom:sbom.cyclonedx.json -o json > sbom-vulnerability-results.json
+        grype sbom:sbom.cyclonedx.json -o table > sbom-vulnerability-results.txt
+        echo "Vulnerability scan results:"
+        cat sbom-vulnerability-results.txt
+
+    - name: Generate HTML Report
+      run: |
+        set -x
+        # Start HTML file
+        echo "<html><head><title>SBOM and Vulnerability Report</title></head><body>" > sbom-report.html
+        
+        # Add SBOM Table
+        echo "<h1>SBOM Report</h1>" >> sbom-report.html
+        echo "<pre>" >> sbom-report.html
+        cat sbom-report-table.txt >> sbom-report.html
+        echo "</pre>" >> sbom-report.html
+        
+        # Add Vulnerability Results
+        echo "<h1>Vulnerability Report</h1>" >> sbom-report.html
+        if grep -q "No vulnerabilities found" sbom-vulnerability-results.txt; then
+          echo "<p style='color: green; font-size: 20px;'>No vulnerabilities found!</p>" >> sbom-report.html
+        else
+          echo "<pre>" >> sbom-report.html
+          cat sbom-vulnerability-results.txt >> sbom-report.html
+          echo "</pre>" >> sbom-report.html
+        fi
+
+        # Close HTML
+        echo "</body></html>" >> sbom-report.html
+
+    - name: Upload SBOM and Reports as Artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: sbom-reports
+        path: |
+          sbom.cyclonedx.json
+          sbom-report-table.txt
+          sbom-vulnerability-results.json
+          sbom-vulnerability-results.txt
+          sbom-report.html
 
     - name: Upload SBOM to Security Tab
       env:
@@ -35,5 +79,5 @@ jobs:
         curl -X POST \
           -H "Authorization: token $GITHUB_TOKEN" \
           -H "Content-Type: application/json" \
-          --data @sbom.json \
+          --data @sbom.cyclonedx.json \
           https://api.github.com/repos/${{ github.repository }}/security/code-scanning/sarifs
