@@ -27,7 +27,7 @@ jobs:
       # Step 4: Install CycloneDX CLI (to convert SBOM to HTML)
       - name: Install CycloneDX CLI
         run: |
-          curl -sSfL https://github.com/CycloneDX/cyclonedx-cli/releases/latest/download/cyclonedx-linux-x64.tar.gz | tar xz
+          curl -sSfL https://github.com/CycloneDX/cyclonedx-cli/releases/download/v0.30.1/cyclonedx-linux-x64.tar.gz | tar -xz
           mv cyclonedx /usr/local/bin/
 
       # Step 5: Generate SBOM with Syft in CycloneDX format
