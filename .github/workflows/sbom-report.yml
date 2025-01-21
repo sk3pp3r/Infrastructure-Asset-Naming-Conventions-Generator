@@ -1,4 +1,4 @@
-name: Generate and Publish SBOM HTML Report Master
+name: Generate and Publish SBOM HTML Report
 
 on:
   push:
@@ -14,66 +14,66 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v3
 
-      # Step 2: Install Syft
-      - name: Install Syft
+      # Step 2: Install Syft and Grype
+      - name: Install Syft and Grype
         run: |
           curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
+          curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin
 
-      # Step 3: Create Go Template for HTML Output
-      - name: Create HTML Template
+      # Step 3: Generate SBOM for Current Directory
+      - name: Generate SBOM in Table Format
         run: |
-          cat <<EOF > sbom-template.tmpl
-          <!DOCTYPE html>
-          <html lang="en">
-          <head>
-              <meta charset="UTF-8">
-              <meta name="viewport" content="width=device-width, initial-scale=1.0">
-              <title>SBOM Report</title>
-              <style>
-                  body { font-family: Arial, sans-serif; line-height: 1.6; margin: 20px; }
-                  table { border-collapse: collapse; width: 100%; }
-                  th, td { border: 1px solid #ddd; padding: 8px; }
-                  th { background-color: #f4f4f4; text-align: left; }
-              </style>
-          </head>
-          <body>
-              <h1>Software Bill of Materials (SBOM)</h1>
-              <h2>Source: {{ .Source }}</h2>
-              <h3>Packages</h3>
-              <table>
-                  <thead>
-                      <tr>
-                          <th>Name</th>
-                          <th>Version</th>
-                          <th>Type</th>
-                      </tr>
-                  </thead>
-                  <tbody>
-                  {{ range .Artifacts }}
-                      <tr>
-                          <td>{{ .Name }}</td>
-                          <td>{{ .Version }}</td>
-                          <td>{{ .Type }}</td>
-                      </tr>
-                  {{ end }}
-                  </tbody>
-              </table>
-          </body>
-          </html>
-          EOF
+          syft dir:. -o table > sbom-report-table.txt
 
-      # Step 4: Generate SBOM as HTML
-      - name: Generate SBOM as HTML
+      # Step 4: Scan for Vulnerabilities
+      - name: Scan SBOM for Vulnerabilities
         run: |
-          syft . -o template=sbom-template.tmpl > sbom.html
+          syft dir:. -o json > sbom.json
+          grype sbom:sbom.json -o table > sbom-vulnerability-results.txt
 
-      # Step 5: Prepare Pages Directory
+      # Step 5: Generate HTML Report
+      - name: Generate HTML Report
+        run: |
+          # Start HTML structure
+          echo "<html><head><title>SBOM and Vulnerability Report</title></head><body>" > sbom-report.html
+
+          # Add SBOM Report Section
+          echo "<h1>SBOM Report</h1>" >> sbom-report.html
+          echo "<table border='1'><tr><th>Name</th><th>Version</th><th>Type</th></tr>" >> sbom-report.html
+          while IFS= read -r line; do
+            name=$(echo $line | awk '{print $1}')
+            version=$(echo $line | awk '{print $2}')
+            type=$(echo $line | awk '{print $3}')
+            echo "<tr><td>$name</td><td>$version</td><td>$type</td></tr>" >> sbom-report.html
+          done < sbom-report-table.txt
+          echo "</table>" >> sbom-report.html
+
+          # Add Vulnerability Report Section
+          echo "<h1>SBOM Vulnerability Report</h1>" >> sbom-report.html
+          if grep -q "No vulnerabilities found" sbom-vulnerability-results.txt; then
+            echo "<div style='text-align: center; padding: 20px; background-color: #28a745; color: white;'>No vulnerabilities found in the SBOM.</div>" >> sbom-report.html
+          else
+            echo "<table border='1'><tr><th>Name</th><th>Version</th><th>Severity</th></tr>" >> sbom-report.html
+            while IFS= read -r line; do
+              name=$(echo $line | awk '{print $1}')
+              version=$(echo $line | awk '{print $2}')
+              severity=$(echo $line | awk '{print $3}')
+              echo "<tr><td>$name</td><td>$version</td><td>$severity</td></tr>" >> sbom-report.html
+            done < sbom-vulnerability-results.txt
+            echo "</table>" >> sbom-report.html
+          fi
+
+          # End HTML structure
+          echo "</body></html>" >> sbom-report.html
+
+      # Step 6: Prepare Pages Directory
       - name: Prepare Pages Directory
         run: |
           mkdir -p pages
-          mv sbom.html pages/index.html
+          mv sbom-report.html pages/index.html
+          mv sbom.json pages/sbom.json
 
-      # Step 6: Deploy to GitHub Pages
+      # Step 7: Deploy to GitHub Pages
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
         with:
