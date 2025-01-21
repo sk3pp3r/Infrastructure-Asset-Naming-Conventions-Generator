@@ -1,4 +1,4 @@
-name: Generate and Publish SBOM and Vulnerability Report
+name: Generate and Publish SBOM HTML Report Master
 
 on:
   push:
@@ -19,41 +19,61 @@ jobs:
         run: |
           curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
 
-      # Step 3: Install Grype
-      - name: Install Grype
+      # Step 3: Create Go Template for HTML Output
+      - name: Create HTML Template
         run: |
-          curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin
+          cat <<EOF > sbom-template.tmpl
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+              <meta charset="UTF-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1.0">
+              <title>SBOM Report</title>
+              <style>
+                  body { font-family: Arial, sans-serif; line-height: 1.6; margin: 20px; }
+                  table { border-collapse: collapse; width: 100%; }
+                  th, td { border: 1px solid #ddd; padding: 8px; }
+                  th { background-color: #f4f4f4; text-align: left; }
+              </style>
+          </head>
+          <body>
+              <h1>Software Bill of Materials (SBOM)</h1>
+              <h2>Source: {{ .Source }}</h2>
+              <h3>Packages</h3>
+              <table>
+                  <thead>
+                      <tr>
+                          <th>Name</th>
+                          <th>Version</th>
+                          <th>Type</th>
+                      </tr>
+                  </thead>
+                  <tbody>
+                  {{ range .Artifacts }}
+                      <tr>
+                          <td>{{ .Name }}</td>
+                          <td>{{ .Version }}</td>
+                          <td>{{ .Type }}</td>
+                      </tr>
+                  {{ end }}
+                  </tbody>
+              </table>
+          </body>
+          </html>
+          EOF
 
-      # Step 4: Install CycloneDX CLI (to convert SBOM to HTML)
-      - name: Install CycloneDX CLI
+      # Step 4: Generate SBOM as HTML
+      - name: Generate SBOM as HTML
         run: |
-          curl -sSfL https://github.com/CycloneDX/cyclonedx-cli/releases/download/v0.30.1/cyclonedx-linux-x64.tar.gz | tar -xz
-          mv cyclonedx /usr/local/bin/
+          syft . -o template=sbom-template.tmpl > sbom.html
 
-      # Step 5: Generate SBOM with Syft in CycloneDX format
-      - name: Generate SBOM (CycloneDX)
-        run: |
-          syft . -o cyclonedx-json > sbom.cyclonedx.json
-
-      # Step 6: Convert SBOM to HTML
-      - name: Convert SBOM to HTML
-        run: |
-          cyclonedx convert --input-file sbom.cyclonedx.json --output-format html --output-file sbom.html
-
-      # Step 7: Scan for Vulnerabilities with Grype
-      - name: Scan for Vulnerabilities
-        run: |
-          grype sbom:sbom.cyclonedx.json -o table > vulnerabilities.html
-
-      # Step 8: Prepare Pages Directory
+      # Step 5: Prepare Pages Directory
       - name: Prepare Pages Directory
         run: |
           mkdir -p pages
-          mv sbom.cyclonedx.json pages/sbom.json
-          mv sbom.html pages/sbom.html
-          mv vulnerabilities.html pages/index.html
+          mv sbom.html pages/index.html
 
-      # Step 9: Deploy to GitHub Pages
+      # Step 6: Deploy to GitHub Pages
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
         with:
