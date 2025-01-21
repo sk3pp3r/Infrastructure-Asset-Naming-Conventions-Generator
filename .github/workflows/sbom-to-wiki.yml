@@ -1,0 +1,87 @@
+name: Generate and Publish SBOM to Wiki
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  publish-sbom-wiki:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Step 1: Checkout the repository
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      # Step 2: Install Syft and Grype
+      - name: Install Syft and Grype
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
+          curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin
+
+      # Step 3: Generate SBOM for Current Directory
+      - name: Generate SBOM in Table Format
+        run: |
+          syft dir:. -o table > sbom-report-table.txt
+
+      # Step 4: Scan for Vulnerabilities
+      - name: Scan SBOM for Vulnerabilities
+        run: |
+          syft dir:. -o json > sbom.json
+          grype sbom:sbom.json -o table > sbom-vulnerability-results.txt
+
+      # Step 5: Generate HTML Report
+      - name: Generate HTML Report
+        run: |
+          # Start HTML structure
+          echo "<html><head><title>SBOM and Vulnerability Report</title></head><body>" > sbom-report.html
+
+          # Add SBOM Report Section
+          echo "<h1>SBOM Report</h1>" >> sbom-report.html
+          echo "<table border='1'><tr><th>Name</th><th>Version</th><th>Type</th></tr>" >> sbom-report.html
+          while IFS= read -r line; do
+            name=$(echo $line | awk '{print $1}')
+            version=$(echo $line | awk '{print $2}')
+            type=$(echo $line | awk '{print $3}')
+            echo "<tr><td>$name</td><td>$version</td><td>$type</td></tr>" >> sbom-report.html
+          done < sbom-report-table.txt
+          echo "</table>" >> sbom-report.html
+
+          # Add Vulnerability Report Section
+          echo "<h1>SBOM Vulnerability Report</h1>" >> sbom-report.html
+          if grep -q "No vulnerabilities found" sbom-vulnerability-results.txt; then
+            echo "<div style='text-align: center; padding: 20px; background-color: #28a745; color: white;'>No vulnerabilities found in the SBOM.</div>" >> sbom-report.html
+          else
+            echo "<table border='1'><tr><th>Name</th><th>Version</th><th>Severity</th></tr>" >> sbom-report.html
+            while IFS= read -r line; do
+              name=$(echo $line | awk '{print $1}')
+              version=$(echo $line | awk '{print $2}')
+              severity=$(echo $line | awk '{print $3}')
+              echo "<tr><td>$name</td><td>$version</td><td>$severity</td></tr>" >> sbom-report.html
+            done < sbom-vulnerability-results.txt
+            echo "</table>" >> sbom-report.html
+          fi
+
+          # End HTML structure
+          echo "</body></html>" >> sbom-report.html
+
+      # Step 6: Publish to Wiki
+      - name: Publish SBOM to Wiki
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Clone the repository's Wiki
+          git clone https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.wiki.git wiki
+
+          # Copy the HTML report and JSON file to the Wiki
+          cp sbom-report.html wiki/SBOM_Report.html
+          cp sbom.json wiki/SBOM.json
+
+          # Commit and push changes to the Wiki
+          cd wiki
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add .
+          git commit -m "Add SBOM report and SBOM JSON"
+          git push
