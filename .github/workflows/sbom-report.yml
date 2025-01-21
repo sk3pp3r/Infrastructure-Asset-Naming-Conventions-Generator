@@ -1,83 +1,49 @@
-name: Generate SBOM, Scan Vulnerabilities, and Create Report
+name: Generate and Publish SBOM HTML Report
 
 on:
   push:
     branches:
       - main
-  workflow_dispatch:
 
 jobs:
-  sbom-scan:
+  sbom-html-report:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout Repository
-      uses: actions/checkout@v2
+      # Step 1: Checkout the repository
+      - name: Checkout Code
+        uses: actions/checkout@v3
 
-    - name: Install Syft and Grype
-      run: |
-        set -x
-        curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
-        curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin
+      # Step 2: Install Syft
+      - name: Install Syft
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
 
-    - name: Generate SBOM
-      run: |
-        set -x
-        syft dir:. -o cyclonedx-json > sbom.cyclonedx.json
-        syft dir:. -o table > sbom-report-table.txt
-        echo "SBOM table:"
-        cat sbom-report-table.txt
+      # Step 3: Install Grype
+      - name: Install Grype
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin
 
-    - name: Scan SBOM for Vulnerabilities
-      run: |
-        set -x
-        grype sbom:sbom.cyclonedx.json -o json > sbom-vulnerability-results.json
-        grype sbom:sbom.cyclonedx.json -o table > sbom-vulnerability-results.txt
-        echo "Vulnerability scan results:"
-        cat sbom-vulnerability-results.txt
+      # Step 4: Generate SBOM with Syft in CycloneDX format
+      - name: Generate SBOM (CycloneDX)
+        run: |
+          syft . -o cyclonedx-json > sbom.cyclonedx.json
 
-    - name: Generate HTML Report
-      run: |
-        set -x
-        # Start HTML file
-        echo "<html><head><title>SBOM and Vulnerability Report</title></head><body>" > sbom-report.html
-        
-        # Add SBOM Table
-        echo "<h1>SBOM Report</h1>" >> sbom-report.html
-        echo "<pre>" >> sbom-report.html
-        cat sbom-report-table.txt >> sbom-report.html
-        echo "</pre>" >> sbom-report.html
-        
-        # Add Vulnerability Results
-        echo "<h1>Vulnerability Report</h1>" >> sbom-report.html
-        if grep -q "No vulnerabilities found" sbom-vulnerability-results.txt; then
-          echo "<p style='color: green; font-size: 20px;'>No vulnerabilities found!</p>" >> sbom-report.html
-        else
-          echo "<pre>" >> sbom-report.html
-          cat sbom-vulnerability-results.txt >> sbom-report.html
-          echo "</pre>" >> sbom-report.html
-        fi
+      # Step 5: Scan for Vulnerabilities with Grype
+      - name: Scan for Vulnerabilities
+        run: |
+          grype sbom:sbom.cyclonedx.json -o table > vulnerabilities.html
 
-        # Close HTML
-        echo "</body></html>" >> sbom-report.html
+      # Step 6: Prepare HTML report directory
+      - name: Prepare Pages Directory
+        run: |
+          mkdir -p pages
+          mv sbom.cyclonedx.json pages/sbom.json
+          mv vulnerabilities.html pages/index.html
 
-    - name: Upload SBOM and Reports as Artifacts
-      uses: actions/upload-artifact@v3
-      with:
-        name: sbom-reports
-        path: |
-          sbom.cyclonedx.json
-          sbom-report-table.txt
-          sbom-vulnerability-results.json
-          sbom-vulnerability-results.txt
-          sbom-report.html
-
-    - name: Upload SBOM to Security Tab
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: |
-        curl -X POST \
-          -H "Authorization: token $GITHUB_TOKEN" \
-          -H "Content-Type: application/json" \
-          --data @sbom.cyclonedx.json \
-          https://api.github.com/repos/${{ github.repository }}/security/code-scanning/sarifs
+      # Step 7: Deploy to GitHub Pages
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: pages
