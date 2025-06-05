@@ -1,4 +1,4 @@
-# Dockerfile for Streamlit Application
+# Dockerfile for Streamlit app
 
 # Specify the base image
 #FROM python:3.7
